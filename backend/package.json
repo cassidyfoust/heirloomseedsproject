@@ -9,7 +9,10 @@
     "watch": "tsc -w",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "migrate": "ts-node src/scripts/runMigrations.ts",
+    "verify-db": "ts-node src/scripts/verifyDatabase.ts",
+    "verify-user": "ts-node src/scripts/verifyUser.ts"
   },
   "keywords": [],
   "author": "",

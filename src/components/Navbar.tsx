@@ -8,10 +8,13 @@ import {
   Box,
   IconButton,
   Badge,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import InventoryIcon from "@mui/icons-material/Inventory";
+import ReceiptIcon from "@mui/icons-material/Receipt";
 
 interface NavbarProps {
   selectedSeeds?: Map<number, number>;
@@ -20,6 +23,15 @@ interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ selectedSeeds, isAuthenticated }) => {
   const navigate = useNavigate();
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+
+  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
 
   const getTotalSelectedSeeds = () => {
     if (!selectedSeeds) return 0;
@@ -60,14 +72,24 @@ const Navbar: React.FC<NavbarProps> = ({ selectedSeeds, isAuthenticated }) => {
             </Badge>
           </IconButton>
           {isAuthenticated ? (
-            <Button
-              color="inherit"
-              startIcon={<InventoryIcon />}
-              component={RouterLink}
-              to="/admin"
-            >
-              Inventory Management
-            </Button>
+            <>
+              <Button
+                color="inherit"
+                startIcon={<InventoryIcon />}
+                component={RouterLink}
+                to="/admin"
+              >
+                Inventory
+              </Button>
+              <Button
+                color="inherit"
+                startIcon={<ReceiptIcon />}
+                component={RouterLink}
+                to="/admin/orders"
+              >
+                Orders
+              </Button>
+            </>
           ) : (
             <IconButton
               color="inherit"

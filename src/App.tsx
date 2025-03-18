@@ -8,6 +8,7 @@ import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import Login from "./pages/Login";
 import AdminSeedInventory from "./pages/AdminSeedInventory";
+import ManageOrders from "./pages/ManageOrders";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { Seed, api } from "./services/api";
 
@@ -64,9 +65,22 @@ function App() {
 
   const handleLogin = async (username: string, password: string) => {
     try {
+      console.log("Starting login process...");
       const user = await api.login(username, password);
+      console.log("Login successful, user data:", user);
+
+      if (!user.token) {
+        console.error("No token received in login response");
+        throw new Error("Invalid login response");
+      }
+
+      console.log("Storing token in localStorage...");
+      localStorage.setItem("token", user.token);
+      console.log("Token stored successfully");
+
       setIsAuthenticated(true);
     } catch (error) {
+      console.error("Login failed:", error);
       throw new Error("Invalid credentials");
     }
   };
@@ -110,6 +124,14 @@ function App() {
             element={
               <ProtectedRoute isAuthenticated={isAuthenticated}>
                 <AdminSeedInventory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/orders"
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                <ManageOrders />
               </ProtectedRoute>
             }
           />

@@ -20,15 +20,19 @@ export const authenticateToken = async (
   res: Response,
   next: NextFunction
 ) => {
+  console.log("Authenticating request...");
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
+    console.log("No token provided");
     return res.status(401).json({ error: "Authentication token required" });
   }
 
   try {
+    console.log("Verifying token...");
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    console.log("Token verified successfully");
     const user = await userService.getUserById(decoded.userId);
 
     if (!user) {
@@ -42,6 +46,7 @@ export const authenticateToken = async (
 
     next();
   } catch (error) {
+    console.error("Token verification failed:", error);
     return res.status(403).json({ error: "Invalid or expired token" });
   }
 };

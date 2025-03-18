@@ -23,26 +23,43 @@ export const userService = {
     username: string,
     password: string
   ): Promise<User | null> {
-    console.log("Authenticating user:", username);
-    const result = await pool.query("SELECT * FROM users WHERE username = $1", [
-      username,
-    ]);
-    const user = result.rows[0];
+    console.log("Starting authentication for user:", username);
 
-    if (!user) {
-      console.log("User not found:", username);
-      return null;
+    try {
+      const result = await pool.query(
+        "SELECT * FROM users WHERE username = $1",
+        [username]
+      );
+
+      console.log("Database query completed, rows found:", result.rows.length);
+
+      const user = result.rows[0];
+
+      if (!user) {
+        console.log("User not found in database:", username);
+        return null;
+      }
+
+      console.log("User found in database:", {
+        id: user.id,
+        username: user.username,
+        created_at: user.created_at,
+      });
+
+      console.log("Verifying password...");
+      const isValid = await bcrypt.compare(password, user.password_hash);
+
+      if (!isValid) {
+        console.log("Password verification failed for user:", username);
+        return null;
+      }
+
+      console.log("Password verified successfully for user:", username);
+      return user;
+    } catch (error) {
+      console.error("Error during authentication:", error);
+      throw error;
     }
-
-    console.log("User found, verifying password");
-    const isValid = await bcrypt.compare(password, user.password_hash);
-    if (!isValid) {
-      console.log("Invalid password for user:", username);
-      return null;
-    }
-
-    console.log("Password verified for user:", username);
-    return user;
   },
 
   async getUserById(id: string): Promise<User | null> {

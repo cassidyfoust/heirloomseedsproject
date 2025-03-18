@@ -34,7 +34,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import { useNavigate } from "react-router-dom";
 import { api, Seed } from "../services/api";
 
-const ITEMS_PER_PAGE = 9;
+const ITEMS_PER_PAGE = 10;
 
 type SortOption = "name-asc" | "name-desc" | "category-asc" | "category-desc";
 
@@ -137,7 +137,12 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
         });
         console.log("Fetched seeds:", response.items);
         onSeedsUpdate(response.items);
-        setTotalItems(response.total);
+        setTotalItems(
+          showOutOfStock
+            ? response.total
+            : response.items.filter((seed) => seed.quantity_available > 0)
+                .length
+        );
       } catch (err) {
         console.error("Failed to fetch seeds:", err);
         setError("Failed to fetch seeds");
@@ -146,7 +151,7 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
       }
     };
     fetchSeeds();
-  }, [sortBy, sortOrder, onSeedsUpdate]);
+  }, [sortBy, sortOrder, onSeedsUpdate, showOutOfStock]);
 
   const handleCategoryChange = (
     event: React.MouseEvent<HTMLElement>,
@@ -208,20 +213,22 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
 
   return (
     <Container maxWidth="lg">
-      <Box sx={{ py: 8 }}>
+      <Box sx={{ py: 4 }}>
         <Box
           sx={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            mb: 4,
+            mb: 3,
           }}
         >
           <Box>
-            <Typography variant="h1" component="h1" gutterBottom>
+            <Typography variant="h4" component="h1" gutterBottom>
               Seed Library
             </Typography>
-            <Typography variant="h2">Browse Our Collection</Typography>
+            <Typography variant="h6" color="text.secondary">
+              Browse Our Collection
+            </Typography>
           </Box>
           <Box sx={{ display: "flex", gap: 2 }}>
             {getTotalSelectedSeeds() > 0 && (
@@ -369,7 +376,8 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
           }}
         >
           <Typography variant="body1" color="text.secondary">
-            {totalItems} seed{totalItems !== 1 ? "s" : ""} found
+            {filteredSeeds.length} seed{filteredSeeds.length !== 1 ? "s" : ""}{" "}
+            found
           </Typography>
           {getTotalSelectedSeeds() > 0 && (
             <Typography variant="body1" color="primary">
@@ -398,7 +406,7 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
           <>
             <Grid container spacing={4}>
               {paginatedSeeds.map((seed) => (
-                <Grid item key={seed.id} xs={12} sm={6} md={4}>
+                <Grid item key={seed.id} xs={12} sm={6} md={2.4}>
                   <Card
                     sx={{
                       height: "100%",

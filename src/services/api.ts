@@ -27,8 +27,31 @@ export interface PaginatedResponse<T> {
 export interface User {
   id: number;
   username: string;
+  token: string;
   created_at: string;
   updated_at: string;
+}
+
+interface Order {
+  id: number;
+  customer_name: string;
+  customer_email: string;
+  customer_address: string;
+  is_complete: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface OrderWithSeeds extends Order {
+  seeds: Array<{
+    seed: {
+      id: number;
+      name: string;
+      description: string;
+      category: string;
+    };
+    quantity: number;
+  }>;
 }
 
 export const api = {
@@ -86,10 +109,86 @@ export const api = {
   },
 
   async login(username: string, password: string): Promise<User> {
-    const response = await axios.post<User>(`${API_BASE_URL}/auth/login`, {
-      username,
-      password,
-    });
+    try {
+      console.log("Attempting login...");
+      const response = await axios.post<User>(`${API_BASE_URL}/auth/login`, {
+        username,
+        password,
+      });
+      console.log("Login response:", response.data);
+
+      if (!response.data.token) {
+        console.error("No token in login response");
+        throw new Error("Invalid login response: missing token");
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error("Login error:", error);
+      throw error;
+    }
+  },
+
+  // Order-related methods
+  async getOrders(): Promise<Order[]> {
+    try {
+      console.log("Fetching orders from API...");
+      const token = localStorage.getItem("token");
+      if (!token) {
+        console.error("No authentication token found");
+        throw new Error("Authentication required");
+      }
+      const response = await axios.get<Order[]>(`${API_BASE_URL}/orders`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      console.log(`Successfully fetched ${response.data.length} orders`);
+      return response.data;
+    } catch (error: any) {
+      console.error("Error in getOrders:", error);
+      if (error.response) {
+        console.error("API error response:", {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+        });
+        throw new Error(error.response.data?.error || "Failed to fetch orders");
+      }
+      throw error;
+    }
+  },
+
+  async getOrderById(id: number): Promise<OrderWithSeeds> {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      throw new Error("Authentication required");
+    }
+    const response = await axios.get<OrderWithSeeds>(
+      `${API_BASE_URL}/orders/${id}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
+
+  async updateOrderStatus(id: number, is_complete: boolean): Promise<Order> {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      throw new Error("Authentication required");
+    }
+    const response = await axios.patch<Order>(
+      `${API_BASE_URL}/orders/${id}/status`,
+      { is_complete },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
     return response.data;
   },
 };

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Container,
   Typography,
@@ -9,11 +9,23 @@ import {
   Grid,
   TextField,
   Divider,
+  FormControlLabel,
+  Checkbox,
+  Link,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 
 const Checkout: React.FC = () => {
   const navigate = useNavigate();
+  const [hasDonated, setHasDonated] = useState(false);
+  const [donationAmount, setDonationAmount] = useState<string>("");
+
+  const handleDonationChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setHasDonated(event.target.checked);
+    if (!event.target.checked) {
+      setDonationAmount("");
+    }
+  };
 
   return (
     <Container maxWidth="lg">
@@ -58,19 +70,42 @@ const Checkout: React.FC = () => {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Payment Information
+                  Support Our Project
                 </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <TextField fullWidth label="Card Number" required />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="Expiry Date" required />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="CVV" required />
-                  </Grid>
-                </Grid>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 2 }}
+                >
+                  Your donations help us preserve heirloom seed varieties and
+                  support sustainable agriculture. While optional, every
+                  contribution makes a difference.
+                </Typography>
+                <Box sx={{ mt: 2 }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={hasDonated}
+                        onChange={handleDonationChange}
+                        color="primary"
+                      />
+                    }
+                    label="I have made a donation to support the Heirloom Seeds Project"
+                  />
+                  {hasDonated && (
+                    <TextField
+                      fullWidth
+                      label="Donation Amount ($)"
+                      type="number"
+                      value={donationAmount}
+                      onChange={(e) => setDonationAmount(e.target.value)}
+                      sx={{ mt: 2 }}
+                      InputProps={{
+                        inputProps: { min: 0, step: "0.01" },
+                      }}
+                    />
+                  )}
+                </Box>
               </CardContent>
             </Card>
           </Grid>
