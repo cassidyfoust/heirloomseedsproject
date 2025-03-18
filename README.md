@@ -1,14 +1,14 @@
 # Heirloom Seeds Project
 
-A modern web application dedicated to preserving and sharing heirloom seed varieties. This project aims to connect seed savers, gardeners, and plant enthusiasts while promoting biodiversity and sustainable agriculture.
+A for-fun, not-profit redesign of the FreeHeirloomSeeds website, which is dedicated to increasing accessibility of heirloom seed varieties.
 
 ## Features (Planned)
 
-- Browse heirloom seed varieties
-- Share and save seed information
-- Community engagement
-- Growing guides and tips
-- Seed exchange platform
+- Library of available free heirloom seeds
+- Ability for customers to add to cart and submit requests for heirloom seeds
+- Admin login
+- Admin management of seed inventory
+- Admin management of customer orders
 
 ## Getting Started
 
@@ -54,10 +54,6 @@ The application will open in your default browser at `http://localhost:3000`.
 - React Router
 - Styled Components
 - Material-UI
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
