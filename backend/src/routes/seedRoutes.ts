@@ -6,14 +6,25 @@ const router = express.Router();
 // Get all seeds with optional filtering, sorting, and pagination
 router.get("/", async (req, res) => {
   try {
-    const { category, search, sortBy, sortOrder, page, limit } = req.query;
+    const {
+      category,
+      search,
+      sortBy,
+      sortOrder,
+      page,
+      limit,
+      showOutOfStock,
+      showOversized,
+    } = req.query;
     const seeds = await seedService.getAllSeeds(
       category as string | undefined,
       search as string | undefined,
       (sortBy as "name" | "category") || "name",
       (sortOrder as "asc" | "desc") || "asc",
       parseInt(page as string) || 1,
-      parseInt(limit as string) || 9
+      parseInt(limit as string) || 50, // Always apply limit for pagination
+      showOutOfStock === "true",
+      showOversized === "true"
     );
     res.json(seeds);
   } catch (error) {

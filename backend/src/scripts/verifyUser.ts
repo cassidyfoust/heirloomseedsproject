@@ -31,13 +31,19 @@ async function verifyUser(username: string, password: string) {
       const newHash = await bcrypt.hash(password, 10);
       console.log("New password hash would be:", newHash);
     }
-
-    await pool.end();
   } catch (error) {
     console.error("Error verifying user:", error);
+  } finally {
     await pool.end();
   }
 }
 
-// Run the verification
-verifyUser("heirloomseeds", "heirloomseedstest");
+// Get username and password from command line arguments
+const [username, password] = process.argv.slice(2);
+
+if (!username || !password) {
+  console.error("Usage: npm run verify-user <username> <password>");
+  process.exit(1);
+}
+
+verifyUser(username, password);

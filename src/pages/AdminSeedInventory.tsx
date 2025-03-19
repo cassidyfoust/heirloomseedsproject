@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Container,
   Typography,
@@ -12,7 +12,6 @@ import {
   Paper,
   CircularProgress,
   TextField,
-  Button,
   IconButton,
   Tooltip,
   FormControl,
@@ -20,16 +19,23 @@ import {
   Select,
   MenuItem,
   Grid,
+  Pagination,
+  SelectChangeEvent,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { api, Seed } from "../services/api";
+import EditSeedModal from "../components/EditSeedModal";
 
 interface EditableSeed extends Seed {
   isEditing?: boolean;
   tempQuantity?: number;
 }
+
+const ITEMS_PER_PAGE = 50;
 
 const AdminSeedInventory: React.FC = () => {
   const [seeds, setSeeds] = useState<EditableSeed[]>([]);
@@ -37,86 +43,177 @@ const AdminSeedInventory: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-
-  useEffect(() => {
-    fetchSeeds();
-  }, []);
-
-  const fetchSeeds = async () => {
-    setLoading(true);
-    try {
-      const response = await api.getSeeds({
-        limit: 100, // Get all seeds for admin view
-        sortBy: "name",
-        sortOrder: "asc",
-      });
-      setSeeds(response.items);
-    } catch (err) {
-      setError("Failed to fetch seeds");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEdit = (seed: EditableSeed) => {
-    setSeeds((prev) =>
-      prev.map((s) =>
-        s.id === seed.id
-          ? { ...s, isEditing: true, tempQuantity: s.quantity_available }
-          : s
-      )
-    );
-  };
-
-  const handleSave = async (seed: EditableSeed) => {
-    if (!seed.tempQuantity) return;
-
-    try {
-      await api.updateSeed(seed.id, {
-        ...seed,
-        quantity_available: seed.tempQuantity,
-      });
-      setSeeds((prev) =>
-        prev.map((s) =>
-          s.id === seed.id
-            ? {
-                ...s,
-                quantity_available: seed.tempQuantity!,
-                isEditing: false,
-                tempQuantity: undefined,
-              }
-            : s
-        )
-      );
-    } catch (err) {
-      setError("Failed to update seed quantity");
-    }
-  };
-
-  const handleCancel = (seed: EditableSeed) => {
-    setSeeds((prev) =>
-      prev.map((s) =>
-        s.id === seed.id
-          ? { ...s, isEditing: false, tempQuantity: undefined }
-          : s
-      )
-    );
-  };
-
-  const categories = Array.from(
-    new Set(seeds.map((seed) => seed.category))
-  ).sort();
-
-  const filteredSeeds = seeds.filter((seed) => {
-    const matchesSearch = seed.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "all" || seed.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedSeed, setSelectedSeed] = useState<Seed | null>(null);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: "success" | "error";
+  }>({
+    open: false,
+    message: "",
+    severity: "success",
   });
 
-  if (loading) {
+  console.log("[AdminSeedInventory] Component rendering");
+
+  useEffect(() => {
+    console.log("[AdminSeedInventory] Component mounted");
+    return () => {
+      console.log("[AdminSeedInventory] Component unmounted");
+    };
+  }, []);
+
+  // Fetch categories
+  useEffect(() => {
+    console.log("[AdminSeedInventory] Fetching categories");
+    const fetchCategories = async () => {
+      try {
+        const data = await api.getCategories();
+        console.log("[AdminSeedInventory] Categories fetched:", data);
+        setCategories(data as string[]);
+      } catch (err) {
+        console.error("[AdminSeedInventory] Failed to fetch categories:", err);
+        setError("Failed to fetch categories");
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Fetch seeds
+  useEffect(() => {
+    console.log("[AdminSeedInventory] Fetching seeds with params:", {
+      page,
+      searchQuery,
+      selectedCategory,
+    });
+    const fetchSeeds = async () => {
+      setLoading(true);
+      try {
+        const response = await api.getSeeds({
+          page,
+          limit: ITEMS_PER_PAGE,
+          search: searchQuery,
+          category: selectedCategory === "all" ? undefined : selectedCategory,
+        });
+        console.log("[AdminSeedInventory] Seeds fetched:", {
+          count: response.items.length,
+          total: response.total,
+        });
+        setSeeds(response.items);
+        setTotalItems(response.total);
+      } catch (err) {
+        console.error("[AdminSeedInventory] Failed to fetch seeds:", err);
+        setError("Failed to fetch seeds");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSeeds();
+  }, [page, searchQuery, selectedCategory]);
+
+  useEffect(() => {
+    console.log("[AdminSeedInventory] Seeds state changed:", {
+      count: seeds.length,
+    });
+  }, [seeds]);
+
+  useEffect(() => {
+    console.log("[AdminSeedInventory] Loading state changed:", loading);
+  }, [loading]);
+
+  useEffect(() => {
+    console.log("[AdminSeedInventory] Error state changed:", error);
+  }, [error]);
+
+  useEffect(() => {
+    console.log("[AdminSeedInventory] Page changed:", page);
+  }, [page]);
+
+  useEffect(() => {
+    console.log("[AdminSeedInventory] Search query changed:", searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    console.log(
+      "[AdminSeedInventory] Selected category changed:",
+      selectedCategory
+    );
+  }, [selectedCategory]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("[AdminSeedInventory] Search input changed");
+    setSearchQuery(e.target.value);
+    setPage(1);
+  };
+
+  const handleCategoryChange = (e: SelectChangeEvent) => {
+    console.log("[AdminSeedInventory] Category changed");
+    setSelectedCategory(e.target.value);
+    setPage(1);
+  };
+
+  const handlePageChange = (
+    event: React.ChangeEvent<unknown>,
+    value: number
+  ) => {
+    console.log("[AdminSeedInventory] Page changed to:", value);
+    setPage(value);
+  };
+
+  const handleAddSeed = () => {
+    console.log("[AdminSeedInventory] Opening add seed dialog");
+    // ... rest of the code
+  };
+
+  const handleEdit = (seed: Seed) => {
+    setSelectedSeed(seed);
+    setEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setSelectedSeed(null);
+    setEditModalOpen(false);
+  };
+
+  const handleSaveSeed = async (updatedSeed: Partial<Seed>) => {
+    if (!selectedSeed) return;
+
+    try {
+      await api.updateSeed(selectedSeed.id, updatedSeed);
+      // Refresh the seeds list
+      const response = await api.getSeeds({
+        page,
+        limit: ITEMS_PER_PAGE,
+        search: searchQuery,
+        category: selectedCategory === "all" ? undefined : selectedCategory,
+      });
+      setSeeds(response.items);
+      handleCloseEditModal();
+      setSnackbar({
+        open: true,
+        message: "Seed updated successfully",
+        severity: "success",
+      });
+    } catch (err) {
+      console.error("Failed to update seed:", err);
+      setError("Failed to update seed");
+      setSnackbar({
+        open: true,
+        message: "Failed to update seed",
+        severity: "error",
+      });
+    }
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
+  };
+
+  if (loading && seeds.length === 0) {
     return (
       <Container maxWidth="lg">
         <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
@@ -150,7 +247,8 @@ const AdminSeedInventory: React.FC = () => {
               variant="outlined"
               placeholder="Search seeds by name..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
+              disabled={loading}
             />
           </Grid>
           <Grid item xs={12} md={6}>
@@ -159,8 +257,9 @@ const AdminSeedInventory: React.FC = () => {
               <Select
                 value={selectedCategory}
                 label="Category"
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                onChange={handleCategoryChange}
                 variant="outlined"
+                disabled={loading}
               >
                 <MenuItem value="all">All Categories</MenuItem>
                 {categories.map((category) => (
@@ -175,7 +274,7 @@ const AdminSeedInventory: React.FC = () => {
 
         <TableContainer
           component={Paper}
-          sx={{ maxHeight: "calc(100vh - 200px)" }}
+          sx={{ maxHeight: "calc(100vh - 300px)" }}
         >
           <Table stickyHeader>
             <TableHead>
@@ -205,69 +304,62 @@ const AdminSeedInventory: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredSeeds.map((seed) => (
+              {seeds.map((seed) => (
                 <TableRow key={seed.id}>
                   <TableCell>{seed.name}</TableCell>
                   <TableCell>{seed.category}</TableCell>
+                  <TableCell align="right">{seed.quantity_available}</TableCell>
                   <TableCell align="right">
-                    {seed.isEditing ? (
-                      <TextField
-                        type="number"
-                        value={seed.tempQuantity}
-                        onChange={(e) =>
-                          setSeeds((prev) =>
-                            prev.map((s) =>
-                              s.id === seed.id
-                                ? { ...s, tempQuantity: Number(e.target.value) }
-                                : s
-                            )
-                          )
-                        }
-                        size="small"
-                        sx={{ width: 100 }}
-                      />
-                    ) : (
-                      seed.quantity_available
-                    )}
-                  </TableCell>
-                  <TableCell align="right">
-                    {seed.isEditing ? (
-                      <>
-                        <Tooltip title="Save">
-                          <IconButton
-                            color="primary"
-                            onClick={() => handleSave(seed)}
-                            disabled={seed.tempQuantity === undefined}
-                          >
-                            <SaveIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Cancel">
-                          <IconButton
-                            color="error"
-                            onClick={() => handleCancel(seed)}
-                          >
-                            <CancelIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </>
-                    ) : (
-                      <Tooltip title="Edit">
-                        <IconButton
-                          color="primary"
-                          onClick={() => handleEdit(seed)}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                    <Tooltip title="Edit">
+                      <IconButton onClick={() => handleEdit(seed)}>
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </TableContainer>
+
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <Pagination
+            count={Math.ceil(totalItems / ITEMS_PER_PAGE)}
+            page={page}
+            onChange={handlePageChange}
+            color="primary"
+            size="large"
+            showFirstButton
+            showLastButton
+            disabled={loading}
+          />
+        </Box>
       </Box>
+
+      {selectedSeed && (
+        <EditSeedModal
+          open={editModalOpen}
+          onClose={handleCloseEditModal}
+          onSave={handleSaveSeed}
+          seed={selectedSeed}
+          categories={categories}
+        />
+      )}
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={handleCloseSnackbar}
+          severity={snackbar.severity}
+          sx={{ width: "100%" }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

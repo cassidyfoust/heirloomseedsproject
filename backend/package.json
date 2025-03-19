@@ -12,7 +12,8 @@
     "test:coverage": "jest --coverage",
     "migrate": "ts-node src/scripts/runMigrations.ts",
     "verify-db": "ts-node src/scripts/verifyDatabase.ts",
-    "verify-user": "ts-node src/scripts/verifyUser.ts"
+    "verify-user": "ts-node src/scripts/verifyUser.ts",
+    "create-admin": "ts-node src/scripts/createAdminUser.ts"
   },
   "keywords": [],
   "author": "",

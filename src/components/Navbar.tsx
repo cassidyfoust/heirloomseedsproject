@@ -18,10 +18,15 @@ import ReceiptIcon from "@mui/icons-material/Receipt";
 
 interface NavbarProps {
   selectedSeeds?: Map<number, number>;
-  isAuthenticated?: boolean;
+  isAuthenticated: boolean;
+  onLogout: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ selectedSeeds, isAuthenticated }) => {
+const Navbar: React.FC<NavbarProps> = ({
+  selectedSeeds,
+  isAuthenticated,
+  onLogout,
+}) => {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
@@ -58,8 +63,11 @@ const Navbar: React.FC<NavbarProps> = ({ selectedSeeds, isAuthenticated }) => {
           Heirloom Seeds
         </Typography>
         <Box sx={{ display: "flex", gap: 2 }}>
-          <Button color="inherit" component={RouterLink} to="/">
+          <Button color="inherit" component={RouterLink} to="/seed-library">
             Seed Library
+          </Button>
+          <Button color="inherit" component={RouterLink} to="/about">
+            About
           </Button>
           <IconButton
             color="inherit"

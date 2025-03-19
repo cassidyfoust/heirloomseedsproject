@@ -1,27 +1,37 @@
+import { Pool } from "pg";
 import bcrypt from "bcrypt";
-import pool from "../config/db";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: parseInt(process.env.DB_PORT || "5432"),
+});
 
 async function createTestUser() {
+  const username = "test";
+  const password = "test123";
+  const saltRounds = 10;
+  const passwordHash = await bcrypt.hash(password, saltRounds);
+
   try {
-    const username = "heirloomseeds";
-    const password = "heirloomseedstest";
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-
-    // First, delete any existing user with the same username
-    await pool.query("DELETE FROM users WHERE username = $1", [username]);
-
-    // Then create a new user
-    await pool.query(
-      "INSERT INTO users (username, password_hash) VALUES ($1, $2)",
+    const result = await pool.query(
+      `INSERT INTO users (username, password_hash)
+       VALUES ($1, $2)
+       ON CONFLICT (username) 
+       DO UPDATE SET password_hash = $2`,
       [username, passwordHash]
     );
 
-    console.log("Test user created successfully");
-    process.exit(0);
+    console.log("Test user created/updated successfully");
   } catch (error) {
     console.error("Error creating test user:", error);
-    process.exit(1);
+  } finally {
+    await pool.end();
   }
 }
 

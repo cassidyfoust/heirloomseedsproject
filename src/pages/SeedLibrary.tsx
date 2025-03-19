@@ -34,20 +34,40 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import { useNavigate } from "react-router-dom";
 import { api, Seed } from "../services/api";
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 50;
 
 type SortOption = "name-asc" | "name-desc" | "category-asc" | "category-desc";
 
 // Category color mapping
 const categoryColors: { [key: string]: { light: string; main: string } } = {
-  Tomatoes: { light: "#ffebee", main: "#e57373" },
-  Beans: { light: "#f3e5f5", main: "#ba68c8" },
-  Corn: { light: "#fff3e0", main: "#ffb74d" },
-  // Add more categories with their colors as needed
+  "Asian Greens": { light: "#e8f5e9", main: "#66bb6a" },
+  Alfalfa: { light: "#f1f8e9", main: "#558b2f" },
+  Amaranth: { light: "#fce4ec", main: "#ec407a" },
+  Artichoke: { light: "#e1f5fe", main: "#03a9f4" },
+  Herbs: { light: "#e0f2f1", main: "#26a69a" },
+  Arugula: { light: "#f9fbe7", main: "#9e9d24" },
+  Asparagus: { light: "#e8f5e9", main: "#2e7d32" },
+  Beans: { light: "#fff3e0", main: "#ff9800" },
+  Beets: { light: "#fce4ec", main: "#e91e63" },
+  Broccoli: { light: "#e8f5e9", main: "#43a047" },
+  "Brussels Sprouts": { light: "#f1f8e9", main: "#7cb342" },
+  Cabbage: { light: "#e3f2fd", main: "#42a5f5" },
+  Carrots: { light: "#fff3e0", main: "#ef6c00" },
+  Cauliflower: { light: "#f3e5f5", main: "#ab47bc" },
+  Celery: { light: "#e0f7fa", main: "#00acc1" },
+  Chard: { light: "#f1f8e9", main: "#8bc34a" },
+  "Chinese Cabbage": { light: "#e8eaf6", main: "#3f51b5" },
+  Corn: { light: "#fff8e1", main: "#ffc107" },
+  Flowers: { light: "#fce4ec", main: "#f06292" },
+  Gourds: { light: "#e8f5e9", main: "#4caf50" },
+  Grains: { light: "#fff8e1", main: "#ffd54f" },
+  Legumes: { light: "#fff3e0", main: "#ff5722" },
+  Okra: { light: "#e0f2f1", main: "#009688" },
+  "Root Vegetables": { light: "#ffebee", main: "#f44336" },
 };
 
 // Default color for any new categories
-const defaultCategoryColor = { light: "#e8eaf6", main: "#7986cb" };
+const defaultCategoryColor = { light: "#fafafa", main: "#757575" };
 
 const getCategoryColor = (category: string) => {
   return categoryColors[category] || defaultCategoryColor;
@@ -109,6 +129,7 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showOutOfStock, setShowOutOfStock] = useState(false);
+  const [showOversized, setShowOversized] = useState(false);
 
   // Fetch categories on component mount
   useEffect(() => {
@@ -130,19 +151,18 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
       setLoading(true);
       try {
         const response = await api.getSeeds({
-          page: 1,
-          limit: 100, // Get all seeds
+          page,
+          limit: ITEMS_PER_PAGE, // Always use pagination with 50 seeds per page
           sortBy,
           sortOrder,
+          search: searchQuery,
+          category: selectedCategory === "all" ? undefined : selectedCategory,
+          showOutOfStock,
+          showOversized,
         });
         console.log("Fetched seeds:", response.items);
         onSeedsUpdate(response.items);
-        setTotalItems(
-          showOutOfStock
-            ? response.total
-            : response.items.filter((seed) => seed.quantity_available > 0)
-                .length
-        );
+        setTotalItems(response.total);
       } catch (err) {
         console.error("Failed to fetch seeds:", err);
         setError("Failed to fetch seeds");
@@ -151,13 +171,22 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
       }
     };
     fetchSeeds();
-  }, [sortBy, sortOrder, onSeedsUpdate, showOutOfStock]);
+  }, [
+    page,
+    sortBy,
+    sortOrder,
+    onSeedsUpdate,
+    searchQuery,
+    selectedCategory,
+    showOutOfStock,
+    showOversized,
+  ]);
 
   const handleCategoryChange = (
     event: React.MouseEvent<HTMLElement>,
     newCategory: string
   ) => {
-    setSelectedCategory(newCategory);
+    setSelectedCategory(newCategory || "all");
     setPage(1); // Reset to first page when category changes
   };
 
@@ -167,7 +196,7 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
   };
 
   const handleCategoryPillClick = (category: string) => {
-    setSelectedCategory(category === selectedCategory ? "" : category);
+    setSelectedCategory(category === selectedCategory ? "all" : category);
     setPage(1);
   };
 
@@ -192,24 +221,11 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
     );
   };
 
-  const filteredSeeds = seeds.filter((seed) => {
-    const matchesSearch = seed.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "all" || seed.category === selectedCategory;
-    const hasQuantity = showOutOfStock || seed.quantity_available > 0;
-    return matchesSearch && matchesCategory && hasQuantity;
-  });
+  // Remove client-side filtering since it's now handled by the server
+  const filteredSeeds = seeds;
 
-  console.log("Filtered seeds:", filteredSeeds);
-
-  const paginatedSeeds = filteredSeeds.slice(
-    (page - 1) * ITEMS_PER_PAGE,
-    page * ITEMS_PER_PAGE
-  );
-
-  const totalPages = Math.ceil(filteredSeeds.length / ITEMS_PER_PAGE);
+  // Always calculate total pages based on total items and items per page
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
   return (
     <Container maxWidth="lg">
@@ -363,6 +379,19 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
               }
               label="Show Out of Stock"
             />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={showOversized}
+                  onChange={(e) => {
+                    setShowOversized(e.target.checked);
+                    setPage(1);
+                  }}
+                  color="primary"
+                />
+              }
+              label="Show Only Oversized"
+            />
           </Box>
         </Box>
 
@@ -376,8 +405,7 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
           }}
         >
           <Typography variant="body1" color="text.secondary">
-            {filteredSeeds.length} seed{filteredSeeds.length !== 1 ? "s" : ""}{" "}
-            found
+            {totalItems} seed{totalItems !== 1 ? "s" : ""} found
           </Typography>
           {getTotalSelectedSeeds() > 0 && (
             <Typography variant="body1" color="primary">
@@ -405,7 +433,7 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
         {!loading && !error && (
           <>
             <Grid container spacing={4}>
-              {paginatedSeeds.map((seed) => (
+              {filteredSeeds.map((seed) => (
                 <Grid item key={seed.id} xs={12} sm={6} md={2.4}>
                   <Card
                     sx={{
@@ -472,15 +500,20 @@ const SeedLibrary: React.FC<SeedLibraryProps> = ({
                       </Typography>
                       <Box sx={{ mt: 2 }}>
                         <Typography variant="body2" color="text.secondary">
-                          Growing Season: {seed.growing_season}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
                           Days to Maturity: {seed.days_to_maturity}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Planting Depth: {seed.planting_depth}" | Spacing:{" "}
-                          {seed.spacing_inches}"
-                        </Typography>
+                        {seed.is_oversized && (
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: "warning.main",
+                              fontWeight: "bold",
+                              mt: 1,
+                            }}
+                          >
+                            OVERSIZED
+                          </Typography>
+                        )}
                       </Box>
                     </CardContent>
                     <CardActions sx={{ p: 2, pt: 0 }}>

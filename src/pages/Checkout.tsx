@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 
+// TODO CASS: split out address into separate lines here and in db
 const Checkout: React.FC = () => {
   const navigate = useNavigate();
   const [hasDonated, setHasDonated] = useState(false);

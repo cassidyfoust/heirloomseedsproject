@@ -5,10 +5,8 @@ export interface Seed {
   name: string;
   description: string;
   category: string;
-  growing_season: string;
   days_to_maturity: number;
-  planting_depth: number;
-  spacing_inches: number;
+  is_oversized: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -29,9 +27,10 @@ export const seedService = {
     sortBy: "name" | "category" = "name",
     sortOrder: "asc" | "desc" = "asc",
     page: number = 1,
-    limit: number = 9
+    limit: number = 50,
+    showOutOfStock: boolean = false,
+    showOversized: boolean = false
   ): Promise<PaginatedResponse<Seed>> {
-    const offset = (page - 1) * limit;
     const params: any[] = [];
     const conditions: string[] = [];
 
@@ -52,6 +51,14 @@ export const seedService = {
       params.push(`%${searchQuery}%`);
     }
 
+    if (!showOutOfStock) {
+      conditions.push("quantity_available > 0");
+    }
+
+    if (showOversized) {
+      conditions.push("is_oversized = true");
+    }
+
     const whereClause =
       conditions.length > 0 ? " WHERE " + conditions.join(" AND ") : "";
 
@@ -61,9 +68,11 @@ export const seedService = {
       params
     );
     const total = parseInt(countResult.rows[0].count);
+
+    // Handle pagination
+    const offset = (page - 1) * limit;
     const totalPages = Math.ceil(total / limit);
 
-    // Get paginated results
     const result = await pool.query(
       `SELECT * FROM seeds${whereClause} ORDER BY ${sortBy} ${sortOrder.toUpperCase()} LIMIT $${
         params.length + 1
@@ -99,17 +108,15 @@ export const seedService = {
     seed: Omit<Seed, "id" | "created_at" | "updated_at">
   ): Promise<Seed> {
     const result = await pool.query(
-      `INSERT INTO seeds (name, description, category, growing_season, days_to_maturity, planting_depth, spacing_inches)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO seeds (name, description, category, days_to_maturity, is_oversized)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
       [
         seed.name,
         seed.description,
         seed.category,
-        seed.growing_season,
         seed.days_to_maturity,
-        seed.planting_depth,
-        seed.spacing_inches,
+        seed.is_oversized,
       ]
     );
     return result.rows[0];

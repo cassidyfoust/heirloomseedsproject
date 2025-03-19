@@ -1,3 +1,4 @@
+import { Pool } from "pg";
 import bcrypt from "bcrypt";
 import pool from "../db";
 

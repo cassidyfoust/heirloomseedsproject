@@ -31,16 +31,27 @@ export interface Order {
   customer_name: string;
   customer_email: string;
   customer_address: string;
-  is_complete: boolean;
+  status: "incomplete" | "in_progress" | "complete";
   created_at: Date;
   updated_at: Date;
+  donation_amount: number;
 }
 
 export interface OrderWithSeeds extends Order {
   seeds: Array<{
-    seed: Seed;
+    seed: {
+      id: number;
+      name: string;
+      description: string;
+      category: string;
+    };
     quantity: number;
   }>;
+}
+
+interface OrderSeed {
+  seed_id: number;
+  quantity: number;
 }
 
 class OrderService {
@@ -54,11 +65,29 @@ class OrderService {
     const client = await this.pool.connect();
     try {
       console.log("Attempting to fetch all orders...");
-      const result = await client.query(
-        "SELECT * FROM orders ORDER BY created_at DESC"
-      );
+      const result = await client.query(`
+        SELECT o.*, 
+          json_agg(
+            json_build_object(
+              'seed', json_build_object(
+                'id', s.id,
+                'name', s.name,
+                'category', s.category
+              ),
+              'quantity', os.quantity
+            )
+          ) as seeds
+        FROM orders o
+        LEFT JOIN orders_seeds os ON o.id = os.order_id
+        LEFT JOIN seeds s ON os.seed_id = s.id
+        GROUP BY o.id
+        ORDER BY o.created_at DESC
+      `);
       console.log(`Successfully fetched ${result.rows.length} orders`);
-      return result.rows;
+      return result.rows.map((row) => ({
+        ...row,
+        seeds: row.seeds || [],
+      }));
     } catch (error) {
       console.error("Database error in getAllOrders:", error);
       if (error instanceof Error) {
@@ -77,7 +106,7 @@ class OrderService {
     }
   }
 
-  async getOrderById(id: number): Promise<OrderWithSeeds> {
+  async getOrderById(id: number): Promise<OrderWithSeeds | null> {
     const client = await this.pool.connect();
     try {
       // Start a transaction
@@ -95,9 +124,9 @@ class OrderService {
 
       // Get seeds for this order
       const seedsResult = await client.query(
-        `SELECT s.*, os.quantity 
-         FROM seeds s 
-         JOIN orders_seeds os ON s.id = os.seed_id 
+        `SELECT os.quantity, s.id, s.name, s.description, s.category
+         FROM orders_seeds os
+         JOIN seeds s ON os.seed_id = s.id
          WHERE os.order_id = $1`,
         [id]
       );
@@ -113,12 +142,6 @@ class OrderService {
             name: row.name,
             description: row.description,
             category: row.category,
-            growing_season: row.growing_season,
-            days_to_maturity: row.days_to_maturity,
-            planting_depth: row.planting_depth,
-            spacing_inches: row.spacing_inches,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
           },
           quantity: row.quantity,
         })),
@@ -143,89 +166,81 @@ class OrderService {
     customerName: string,
     customerEmail: string,
     customerAddress: string,
-    seeds: Array<{ seedId: number; quantity: number }>
-  ): Promise<OrderWithSeeds> {
-    // Validate input
-    if (!customerName || !customerEmail || !customerAddress) {
-      throw new ValidationError("Missing required customer information");
-    }
-    if (!seeds.length) {
-      throw new ValidationError("Order must contain at least one seed");
-    }
-
+    seeds: OrderSeed[],
+    includeDonation: boolean = false,
+    donationAmount: number = 0
+  ): Promise<Order> {
     const client = await this.pool.connect();
     try {
-      // Start a transaction
       await client.query("BEGIN");
 
       // Create the order
       const orderResult = await client.query(
-        `INSERT INTO orders (customer_name, customer_email, customer_address, is_complete)
-         VALUES ($1, $2, $3, false)
+        `INSERT INTO orders (customer_name, customer_email, customer_address, status, donation_amount)
+         VALUES ($1, $2, $3, 'incomplete', $4)
          RETURNING *`,
-        [customerName, customerEmail, customerAddress]
+        [
+          customerName,
+          customerEmail,
+          customerAddress,
+          includeDonation ? donationAmount : 0,
+        ]
       );
-
       const order = orderResult.rows[0];
 
-      // Add seeds to the order
-      for (const { seedId, quantity } of seeds) {
-        // Verify seed exists and has sufficient quantity
+      // Create order_seeds entries and update seed quantities
+      for (const seed of seeds) {
+        // Check if enough seeds are available
         const seedResult = await client.query(
           "SELECT quantity_available FROM seeds WHERE id = $1",
-          [seedId]
+          [seed.seed_id]
         );
+        const currentQuantity = seedResult.rows[0].quantity_available;
 
-        if (seedResult.rows.length === 0) {
-          throw new ValidationError(`Seed with ID ${seedId} not found`);
-        }
-
-        if (seedResult.rows[0].quantity_available < quantity) {
-          throw new ValidationError(
-            `Insufficient quantity available for seed ID ${seedId}`
+        if (currentQuantity < seed.quantity) {
+          throw new Error(
+            `Not enough seeds available for seed ID ${seed.seed_id}`
           );
         }
 
-        // Add to orders_seeds
+        // Create order_seeds entry
         await client.query(
-          "INSERT INTO orders_seeds (order_id, seed_id, quantity) VALUES ($1, $2, $3)",
-          [order.id, seedId, quantity]
+          `INSERT INTO orders_seeds (order_id, seed_id, quantity)
+           VALUES ($1, $2, $3)`,
+          [order.id, seed.seed_id, seed.quantity]
         );
 
         // Update seed quantity
         await client.query(
-          "UPDATE seeds SET quantity_available = quantity_available - $1 WHERE id = $2",
-          [quantity, seedId]
+          `UPDATE seeds 
+           SET quantity_available = quantity_available - $1
+           WHERE id = $2`,
+          [seed.quantity, seed.seed_id]
         );
       }
 
-      // Commit the transaction
       await client.query("COMMIT");
-
-      // Fetch the complete order with seeds
-      return this.getOrderById(order.id);
+      return order;
     } catch (error) {
-      // Rollback the transaction on error
       await client.query("ROLLBACK");
-
-      if (error instanceof ValidationError) {
-        throw error;
-      }
-      throw new DatabaseError(
-        "Failed to create order",
-        error instanceof Error ? error : undefined
-      );
+      throw error;
     } finally {
       client.release();
     }
   }
 
-  async updateOrderStatus(id: number, isComplete: boolean): Promise<Order> {
+  async updateOrderStatus(
+    id: number,
+    status: "incomplete" | "in_progress" | "complete"
+  ): Promise<Order> {
     const client = await this.pool.connect();
     try {
       const result = await client.query(
-        "UPDATE orders SET is_complete = $1 WHERE id = $2 RETURNING *",
-        [isComplete, id]
+        `UPDATE orders 
+         SET status = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING *`,
+        [status, id]
       );
 
       if (result.rows.length === 0) {

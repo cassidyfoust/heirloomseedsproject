@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Container,
@@ -22,21 +22,60 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  console.log("[Login] Component rendering");
+
+  useEffect(() => {
+    console.log("[Login] Component mounted");
+    return () => {
+      console.log("[Login] Component unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log("[Login] Username changed:", username);
+  }, [username]);
+
+  useEffect(() => {
+    console.log("[Login] Password changed:", password ? "***" : "");
+  }, [password]);
+
+  useEffect(() => {
+    console.log("[Login] Error state changed:", error);
+  }, [error]);
+
+  useEffect(() => {
+    console.log("[Login] Loading state changed:", loading);
+  }, [loading]);
+
   const from = (location.state as any)?.from?.pathname || "/admin";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[Login] Form submitted");
     setError(null);
     setLoading(true);
 
     try {
+      console.log("[Login] Attempting login for user:", username);
       await onLogin(username, password);
       navigate(from, { replace: true });
-    } catch (err) {
-      setError("Invalid username or password");
+    } catch (err: any) {
+      console.error("[Login] Login error:", err);
+      setError(err.message || "Invalid username or password");
     } finally {
+      console.log("[Login] Setting loading to false");
       setLoading(false);
     }
+  };
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("[Login] Username input changed");
+    setUsername(e.target.value);
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("[Login] Password input changed");
+    setPassword(e.target.value);
   };
 
   return (
@@ -58,7 +97,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               fullWidth
               label="Username"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={handleUsernameChange}
               margin="normal"
               required
             />
@@ -67,7 +106,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               label="Password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handlePasswordChange}
               margin="normal"
               required
             />

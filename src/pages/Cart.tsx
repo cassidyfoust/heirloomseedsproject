@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Container,
   Typography,
@@ -6,20 +6,19 @@ import {
   Card,
   CardContent,
   Button,
+  TextField,
   Grid,
-  IconButton,
-  Tooltip,
-  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Alert,
+  CircularProgress,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
-import RemoveIcon from "@mui/icons-material/Remove";
-import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
-import { Seed } from "../services/api";
-
-interface CartItem {
-  seed: Seed;
-  quantity: number;
-}
+import { api, Seed } from "../services/api";
 
 interface CartProps {
   selectedSeeds: Map<number, number>;
@@ -35,120 +34,244 @@ const Cart: React.FC<CartProps> = ({
   onClearCart,
 }) => {
   const navigate = useNavigate();
+  const [openCheckout, setOpenCheckout] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    customer_name: "",
+    customer_email: "",
+    customer_address: "",
+    include_donation: false,
+    donation_amount: "",
+  });
 
-  const cartItems: CartItem[] = Array.from(selectedSeeds.entries())
-    .map(([seedId, quantity]) => {
-      const seed = seeds.find((s) => s.id === seedId);
-      return seed ? { seed, quantity } : null;
-    })
-    .filter((item): item is CartItem => item !== null);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
 
-  const totalSeeds = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const handleCheckout = async () => {
+    setLoading(true);
+    setError(null);
 
-  if (cartItems.length === 0) {
-    return (
-      <Container maxWidth="lg">
-        <Box sx={{ py: 8 }}>
-          <Typography variant="h4" gutterBottom>
-            Your Cart is Empty
-          </Typography>
-          <Typography variant="body1" color="text.secondary" paragraph>
-            Add some seeds to your cart to get started!
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => navigate("/seed-library")}
-          >
-            Browse Seeds
-          </Button>
-        </Box>
-      </Container>
-    );
-  }
+    try {
+      // Convert selectedSeeds Map to array format expected by API
+      const seedsArray = Array.from(selectedSeeds.entries()).map(
+        ([seed_id, quantity]) => ({
+          seed_id,
+          quantity,
+        })
+      );
+
+      const orderData = {
+        ...formData,
+        seeds: seedsArray,
+        donation_amount: formData.include_donation
+          ? parseFloat(formData.donation_amount)
+          : 0,
+      };
+
+      await api.createOrder(orderData);
+
+      // Clear cart and redirect to success page
+      onClearCart();
+      navigate("/order-success");
+    } catch (error: any) {
+      setError(error.message || "Failed to create order");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getSelectedSeedsList = () => {
+    return Array.from(selectedSeeds.entries())
+      .map(([seedId, quantity]) => {
+        const seed = seeds.find((s) => s.id === seedId);
+        return seed ? { ...seed, quantity } : null;
+      })
+      .filter((seed): seed is Seed & { quantity: number } => seed !== null);
+  };
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ py: 8 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 4 }}>
-          <Typography variant="h4">Your Cart</Typography>
-          <Button variant="outlined" color="error" onClick={onClearCart}>
-            Clear Cart
-          </Button>
-        </Box>
+    <Container maxWidth="md">
+      <Box sx={{ py: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Shopping Cart
+        </Typography>
 
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            {cartItems.map((item) => (
-              <Card key={item.seed.id} sx={{ mb: 2 }}>
-                <CardContent>
-                  <Box
-                    sx={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <Box>
-                      <Typography variant="h6">{item.seed.name}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {item.seed.description}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Tooltip title="Decrease quantity">
-                        <IconButton
-                          size="small"
-                          onClick={() => onQuantityChange(item.seed, -1)}
-                          disabled={item.quantity <= 0}
-                        >
-                          <RemoveIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Typography
-                        variant="body1"
-                        sx={{ minWidth: 24, textAlign: "center" }}
-                      >
-                        {item.quantity}
-                      </Typography>
-                      <Tooltip title="Increase quantity">
-                        <IconButton
-                          size="small"
-                          onClick={() => onQuantityChange(item.seed, 1)}
-                          disabled={
-                            item.quantity >= item.seed.quantity_available
-                          }
-                        >
-                          <AddIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            ))}
-          </Grid>
-
-          <Grid item xs={12} md={4}>
-            <Card>
+        {selectedSeeds.size === 0 ? (
+          <Box sx={{ textAlign: "center", py: 4 }}>
+            <Typography variant="h6" color="text.secondary">
+              Your cart is empty
+            </Typography>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => navigate("/seed-library")}
+              sx={{ mt: 2 }}
+            >
+              Browse Seeds
+            </Button>
+          </Box>
+        ) : (
+          <>
+            <Card sx={{ mb: 4 }}>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Order Summary
-                </Typography>
-                <Box sx={{ my: 2 }}>
-                  <Typography variant="body1">
-                    Total Seeds: {totalSeeds}
-                  </Typography>
-                </Box>
-                <Divider sx={{ my: 2 }} />
+                <Grid container spacing={2}>
+                  {getSelectedSeedsList().map((seed) => (
+                    <Grid item xs={12} key={seed.id}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          py: 1,
+                          borderBottom: "1px solid",
+                          borderColor: "divider",
+                        }}
+                      >
+                        <Box>
+                          <Typography variant="subtitle1">
+                            {seed.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Quantity: {seed.quantity}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Grid>
+                  ))}
+                </Grid>
+              </CardContent>
+            </Card>
+
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "flex-end",
+                alignItems: "center",
+                mb: 4,
+              }}
+            >
+              <Box sx={{ display: "flex", gap: 2 }}>
+                <Button variant="outlined" color="error" onClick={onClearCart}>
+                  Clear Cart
+                </Button>
                 <Button
                   variant="contained"
                   color="primary"
-                  fullWidth
-                  onClick={() => navigate("/checkout")}
+                  onClick={() => setOpenCheckout(true)}
                 >
-                  Proceed to Checkout
+                  Checkout
                 </Button>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+              </Box>
+            </Box>
+
+            <Dialog
+              open={openCheckout}
+              onClose={() => setOpenCheckout(false)}
+              maxWidth="sm"
+              fullWidth
+            >
+              <DialogTitle>Checkout</DialogTitle>
+              <DialogContent>
+                {error && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                  </Alert>
+                )}
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Name"
+                      name="customer_name"
+                      value={formData.customer_name}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Email"
+                      name="customer_email"
+                      type="email"
+                      value={formData.customer_email}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Address"
+                      name="customer_address"
+                      multiline
+                      rows={3}
+                      value={formData.customer_address}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={formData.include_donation}
+                          onChange={handleInputChange}
+                          name="include_donation"
+                        />
+                      }
+                      label="Include a donation to support our mission"
+                    />
+                  </Grid>
+                  {formData.include_donation && (
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Donation Amount"
+                        name="donation_amount"
+                        type="number"
+                        value={formData.donation_amount}
+                        onChange={handleInputChange}
+                        InputProps={{
+                          startAdornment: "$",
+                        }}
+                      />
+                    </Grid>
+                  )}
+                </Grid>
+              </DialogContent>
+              <DialogActions>
+                <Button
+                  onClick={() => setOpenCheckout(false)}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCheckout}
+                  variant="contained"
+                  disabled={
+                    loading ||
+                    !formData.customer_name ||
+                    !formData.customer_email ||
+                    !formData.customer_address ||
+                    (formData.include_donation &&
+                      (!formData.donation_amount ||
+                        parseFloat(formData.donation_amount) <= 0))
+                  }
+                >
+                  {loading ? <CircularProgress size={24} /> : "Place Order"}
+                </Button>
+              </DialogActions>
+            </Dialog>
+          </>
+        )}
       </Box>
     </Container>
   );

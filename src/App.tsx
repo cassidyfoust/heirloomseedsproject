@@ -11,6 +11,8 @@ import AdminSeedInventory from "./pages/AdminSeedInventory";
 import ManageOrders from "./pages/ManageOrders";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { Seed, api } from "./services/api";
+import OrderSuccess from "./pages/OrderSuccess";
+import About from "./pages/About";
 
 const theme = createTheme({
   palette: {
@@ -66,23 +68,32 @@ function App() {
   const handleLogin = async (username: string, password: string) => {
     try {
       console.log("Starting login process...");
-      const user = await api.login(username, password);
-      console.log("Login successful, user data:", user);
+      const response = await api.login(username, password);
+      console.log("Login successful, response:", response);
 
-      if (!user.token) {
+      if (!response.token) {
         console.error("No token received in login response");
         throw new Error("Invalid login response");
       }
 
       console.log("Storing token in localStorage...");
-      localStorage.setItem("token", user.token);
+      localStorage.setItem("token", response.token);
       console.log("Token stored successfully");
 
       setIsAuthenticated(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed:", error);
-      throw new Error("Invalid credentials");
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      } else {
+        throw new Error("Invalid username or password");
+      }
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setIsAuthenticated(false);
   };
 
   return (
@@ -92,10 +103,13 @@ function App() {
         <Navbar
           selectedSeeds={selectedSeeds}
           isAuthenticated={isAuthenticated}
+          onLogout={handleLogout}
         />
         <Routes>
+          <Route path="/" element={<About />} />
+          <Route path="/about" element={<About />} />
           <Route
-            path="/"
+            path="/seed-library"
             element={
               <SeedLibrary
                 selectedSeeds={selectedSeeds}
@@ -135,6 +149,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/order-success" element={<OrderSuccess />} />
         </Routes>
       </Router>
     </ThemeProvider>
